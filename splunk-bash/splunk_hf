@@ -1,0 +1,3 @@
+# crontab setting for removing log files
+0 * * * * root /usr/bin/find /data/log/splunk/syslog/. -maxdepth 2 -name "*.log" -type f -mmin +1440 -delete
+5 * * * * root /usr/bin/find /data/log/splunk/syslog/. -type d -empty -delete

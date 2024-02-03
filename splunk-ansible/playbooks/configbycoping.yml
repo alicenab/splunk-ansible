@@ -1,0 +1,169 @@
+---
+
+#DEPLOYER
+
+- name: configuring deployer migrations
+  hosts: deployer
+  become: false
+  tasks:
+    - name: Copy files from specific folders
+      ansible.builtin.copy:
+        src: /etc/ansible/templates/deployer/migration.conf
+        dest: /opt/splunk/etc/system/local/migration.conf
+        owner: ubuntu
+        mode: 777
+
+- name: configuring deployer servers
+  hosts: deployer
+  become: false
+  tasks:
+    - name: Copy files from specific folders
+      ansible.builtin.copy:
+        src: /etc/ansible/templates/deployer/server.conf
+        dest: /opt/splunk/etc/system/local/server.conf
+        owner: ubuntu
+        mode: 777
+
+# CLUSTERMASTER
+
+- name: configuring clustermaster indexes
+  hosts: clusterMaster
+  become: false
+  tasks:
+    - name: Copy files from specific folders
+      ansible.builtin.copy:
+        src: /etc/ansible/templates/clustermaster/indexes.conf
+        dest: /opt/splunk/etc/system/local/indexes.conf
+        owner: ubuntu
+        mode: 777
+
+
+- name: configuring clustermaster migrations
+  hosts: clusterMaster
+  become: false
+  tasks:
+    - name: Copy files from specific folders
+      ansible.builtin.copy:
+        src: /etc/ansible/templates/clustermaster/migration.conf
+        dest: /opt/splunk/etc/system/local/migration.conf
+        owner: ubuntu
+        mode: 777
+
+- name: configuring clustermaster output
+  hosts: clusterMaster
+  become: false
+  tasks:
+    - name: Copy files from specific folders
+      ansible.builtin.copy:
+        src: /etc/ansible/templates/clustermaster/output.conf
+        dest: /opt/splunk/etc/system/local/output.conf
+        owner: ubuntu
+        mode: 777
+
+- name: configuring clustermaster servers
+  hosts: clusterMaster
+  become: false
+  tasks:
+    - name: Copy files from specific folders
+      ansible.builtin.copy:
+        src: /etc/ansible/templates/clustermaster/server.conf
+        dest: /opt/splunk/etc/system/local/server.conf
+        owner: ubuntu
+        mode: 777
+
+
+# SEARCHHEAD
+
+- name: configuring searchhead migrations
+  hosts: searchheads
+  become: false
+  tasks:
+    - name: Copy files from specific folders
+      ansible.builtin.copy:
+        src: /etc/ansible/templates/clustermaster/migration.conf
+        dest: /opt/splunk/etc/system/local/migration.conf
+        owner: ubuntu
+        mode: 777
+
+
+- name: configuring searchhead servers
+  hosts: searchheads
+  become: false
+  tasks:
+    - name: Copy files from specific folders
+      ansible.builtin.copy:
+        src: /etc/ansible/templates/searchhead/server.conf
+        dest: /opt/splunk/etc/system/local/server.conf
+        owner: ubuntu
+        mode: 777
+
+- name: configuring searchhead collection
+  hosts: searchheads
+  become: false
+  tasks:
+    - name: Copy files from specific folders
+      ansible.builtin.copy:
+        src: /etc/ansible/templates/searchhead/collection.conf
+        dest: /opt/splunk/etc/system/local/collection.conf
+        owner: ubuntu
+        mode: 777
+
+- name: configuring searchhead distsearch
+  hosts: searchheads
+  become: false
+  tasks:
+    - name: Copy files from specific folders
+      ansible.builtin.copy:
+        src: /etc/ansible/templates/searchhead/distsearch.conf
+        dest: /opt/splunk/etc/system/local/distsearch.conf
+        owner: ubuntu
+        mode: 777
+
+
+
+# INDEXERS
+
+- name: configuring indexers indexes
+  hosts: indexers
+  become: false
+  tasks:
+    - name: Copy files from specific folders
+      ansible.builtin.copy:
+        src: /etc/ansible/templates/indexers/indexes.conf
+        dest: /opt/splunk/etc/system/local/indexes.conf
+        owner: ubuntu
+        mode: 777
+
+
+- name: configuring indexers migrations
+  hosts: indexers
+  become: false
+  tasks:
+    - name: Copy files from specific folders
+      ansible.builtin.copy:
+        src: /etc/ansible/templates/indexers/migration.conf
+        dest: /opt/splunk/etc/system/local/migration.conf
+        owner: ubuntu
+        mode: 777
+
+- name: configuring indexers output
+  hosts: indexers
+  become: false
+  tasks:
+    - name: Copy files from specific folders
+      ansible.builtin.copy:
+        src: /etc/ansible/templates/indexers/output.conf
+        dest: /opt/splunk/etc/system/local/output.conf
+        owner: ubuntu
+        mode: 777
+
+- name: configuring indexers servers
+  hosts: indexers
+  become: false
+  tasks:
+    - name: Copy files from specific folders
+      ansible.builtin.copy:
+        src: /etc/ansible/templates/indexers/server.conf
+        dest: /opt/splunk/etc/system/local/server.conf
+        owner: ubuntu
+        mode: 777

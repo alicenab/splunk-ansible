@@ -1,0 +1,65 @@
+---
+- name: updating nodes, installing Splunk, configuring initial setup
+  hosts: searchHead1:searchHead2:searchHead3:deployer:indexerH1:indexerH2:indexerH3:cluster_master
+  become: true
+  tasks:
+    - name: Update package repositories
+      become: true
+      apt:
+        update_cache: yes
+
+- name: INSTALLATION OF SPLUNK AND MINIO
+  hosts: searchHead1:searchHead2:searchHead3:deployer:indexerH1:indexerH2:indexerH3:cluster_master
+
+  become: true
+  vars:
+    splunk_deb_file_path: "/home/ubuntu/splunk-9.1.1-64e843ea36b1-linux-2.6-amd64.deb"
+    splunk_folder_path: "/opt/"
+
+  tasks:
+    - name: Check if Splunk .deb file exists
+      stat:
+        path: "{{ splunk_deb_file_path }}"
+      register: splunk_deb_file
+
+    - name: Check if Splunk folder exists in /opt
+      stat:
+        path: "{{ splunk_folder_path }}"
+      register: splunk_folder
+
+    - name: Install Splunk if .deb file exists and Splunk folder doesn't exist
+      command: dpkg -i "{{ splunk_deb_file_path }}"
+      when:
+        - splunk_deb_file.stat.exists
+        #- not splunk_folder.stat.exists
+
+#- name: Create user-seed.conf for Splunk admin user setup
+#  hosts: searchheads:indexers:cluster_master:deployer
+#  become: true
+#  tasks:
+#    - name: create user-seed
+#      ansible.builtin.copy:
+#        content: |
+#          [user_info]
+#          USERNAME = admin
+#          PASSWORD = adminenter
+#        dest: /opt/splunk/etc/system/local/user-seed.conf
+#
+    - name: Start Splunk and configure initial setup
+      command: /opt/splunk/bin/splunk start --accept-license --no-prompt --answer-yes --seed-passwd adminenter
+
+
+#Installing minIO
+
+    - name: installing minIO
+      command: wget https://dl.min.io/client/mc/release/linux-amd64/mc
+
+    - name: granting access to minIO
+      command: chmod +x mc
+      
+    - name: folder replacemenet for minIO
+      command: sudo mv mc /usr/local/bin/mc
+
+    - name: setting alias for minIO
+      command: mc alias set s3 http://192.168.20.62:9000 minioadmin minioadmin
+      

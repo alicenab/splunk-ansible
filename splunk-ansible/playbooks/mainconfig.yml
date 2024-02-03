@@ -1,0 +1,75 @@
+---
+- name: Update package repositories
+  hosts: searchHead1:searchHead2:searchHead3:deployer:indexerH1:indexerH2:indexerH3:cluster_master
+  become: true
+  tasks:
+    - name: Update package repositories
+      apt:
+        update_cache: yes
+
+- name: Enable Cluster Master Mode
+  hosts: cluster_master
+  tasks:
+    - name: Enable Cluster Master Mode
+      command: /opt/splunk/bin/splunk edit cluster-config -mode manager -replication_factor 4 -search_factor 3 -auth admin:adminenter -secret adminenter -cluster_label cluster1
+
+    - name: Restart Cluster Master
+      command: /opt/splunk/bin/splunk restart
+
+- name: Enabling indexerH1 as peer MODE
+  hosts: indexerH1
+  tasks:
+    - name: Configure indexerH1 as peer mode
+      command: /opt/splunk/bin/splunk edit cluster-config -mode peer -manager_uri "https://192.168.20.89:8089" -auth admin:adminenter -replication_port 9000 -secret adminenter
+
+    - name: Restart indexerH1
+      command: /opt/splunk/bin/splunk restart
+
+- name: Enabling indexerH2 as peer MODE
+  hosts: indexerH2
+  tasks:
+    - name: Configure indexerH2 as peer mode
+      command: /opt/splunk/bin/splunk edit cluster-config -mode peer -manager_uri "https://192.168.20.89:8089" -auth admin:adminenter -replication_port 9000 -secret adminenter
+
+    - name: Restart indexerH2
+      command: /opt/splunk/bin/splunk restart
+
+- name: Enabling indexerH3 as peer MODE
+  hosts: indexerH3
+  tasks:
+    - name: Configure indexerH3 as peer mode
+      command: /opt/splunk/bin/splunk edit cluster-config -mode peer -manager_uri "https://192.168.20.89:8089" -auth admin:adminenter -replication_port 9000 -secret adminenter
+
+    - name: Restart indexerH3
+      command: /opt/splunk/bin/splunk restart
+
+- name: SEARCHHEAD-1 adding CLUSTER
+  hosts: searchHead1
+  tasks:
+    - name: Configure searchHead1 for clustering
+      command: /opt/splunk/bin/splunk init shcluster-config -auth admin:admin -mgmt_uri "https://192.168.20.81:8089" -replication_port 9300 -replication_factor 3 -conf_deploy_fetch_url "http://192.168.20.88:8089" -secret '$7$glmnsv43EHs8hdtLn6LyFhOWxEUb4OX1i4KkqbTDhJmOnBPL2kBKlhZh' -shcluster_label shcluster1
+
+- name: SEARCHHEAD-2 adding CLUSTER
+  hosts: searchHead2
+  tasks:
+    - name: Configure searchHead2 for clustering
+      command: /opt/splunk/bin/splunk init shcluster-config -auth admin:admin -mgmt_uri "https://192.168.20.82:8089" -replication_port 9300 -replication_factor 3 -conf_deploy_fetch_url "http://192.168.20.88:8089" -secret '$7$glmnsv43EHs8hdtLn6LyFhOWxEUb4OX1i4KkqbTDhJmOnBPL2kBKlhZh' -shcluster_label shcluster1
+
+- name: SEARCHHEAD-3 adding CLUSTER
+  hosts: searchHead3
+  tasks:
+    - name: Configure searchHead3 for clustering
+      command: /opt/splunk/bin/splunk init shcluster-config -auth admin:admin -mgmt_uri "https://192.168.20.83:8089" -replication_port 9300 -replication_factor 3 -conf_deploy_fetch_url "http://192.168.20.88:8089" -secret '$7$glmnsv43EHs8hdtLn6LyFhOWxEUb4OX1i4KkqbTDhJmOnBPL2kBKlhZh' -shcluster_label shcluster1
+
+- name: SEARCHHEAD-1 chosen as captain
+  hosts: searchHead1
+  tasks:
+    - name: Bootstrap searchHead1 as shcluster captain
+      command: /opt/splunk/bin/splunk bootstrap shcluster-captain -servers_list "https://192.168.20.81:8089,https://192.168.20.82:8089,https://192.168.20.83:8089" -auth admin:adminenter
+
+- name: RESTART SEARCH HEADS
+  hosts: searchHead1:searchHead2:searchHead3
+  tasks:
+    - name: Restart search heads
+      command: /opt/splunk/bin/splunk restart
+

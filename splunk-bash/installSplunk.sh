@@ -1,0 +1,1187 @@
+#!/bin/bash
+exec > >(tee -ia /tmp/installSplunk_$(date "+%Y%m%d%H%M%S").log)
+exec 2> >(tee -ia /tmp/installSplunk_$(date "+%Y%m%d%H%M%S").log >&2)
+
+# :setl noai nocin nosi inde=
+# disk mount options CentOS   noatime,nodiratime,logbufs=8,logbsize=256k,largeio,inode64,swalloc,nobarrier
+
+echo
+echo '##############################################'
+echo '#                                            #'
+echo '# Welcome to the Splunk 8.1.9 auto-installer #'
+echo '# for Linux.                                 #'
+echo '# Last updated 10/05/2022.                   #'
+echo '# Note: You will be prompted to write the    #'
+echo '# Splunk Web admin password twice.           #'
+echo '#                                            #'
+echo '##############################################'
+
+ORG=cp
+VERSION=8.1.8
+INSTALL_PATH=/data
+REP_FACTOR=2
+SEARCH_FACTOR=2
+IDX_PASS4SYMMKEY=dgkM9GPR8wK
+SHC_PASS4SYMMKEY=ESMC7kTpym98
+IDXDISCOVERY_PASS4SYMMKEY=nv9AQ4SvwYuP
+MASTER_URI=https://127.0.0.1:8089
+DS_URI=https://127.0.0.1:8089
+DP_URI=https://127.0.0.1:8089
+HOT_VOLUME_PATH=$INSTALL_PATH/splunk/var/lib/splunk
+COLD_VOLUME_PATH=$INSTALL_PATH/splunk/var/lib/splunk
+ADMIN_PASSWORD=auto
+
+# Please set ROLE for this Splunk instance.
+#ROLE=CM
+# Please set organization name in lowercase compatible with other Base Config apps.
+#ORG=Test
+#VERSION=8.0.8
+# Please update INSTALL PATH with the path you want to install Splunk. Splunk will be installed on $INSTALL_PATH\splunk
+#INSTALL_PATH=/data
+
+# Please update current Wget download link which you can get from https://www.splunk.com/download.
+INSTALL_FILE_V8_1_4='splunk-8.1.4-17f862b42a7c-Linux-x86_64.tgz'
+INSTALL_FILE_V8_1_5='splunk-8.1.5-9c0c082e4596-Linux-x86_64.tgz'
+INSTALL_FILE_V8_1_6='splunk-8.1.6-c1a0dd183ee5-Linux-x86_64.tgz'
+INSTALL_FILE_V8_1_8='splunk-8.1.8-39da583cc695-Linux-x86_64.tgz'
+INSTALL_FILE_V8_1_9='splunk-8.1.9-a16db3287b56-Linux-x86_64.tgz'
+INSTALL_FILE_V8_2_7='splunk-8.2.7-2e1fca123028-Linux-x86_64.tgz'
+INSTALL_FILE_V9_1_0_1='splunk-9.1.0.1-77f73c9edb85-Linux-x86_64.tgz'
+
+# Please update INSTALL_URL MD% hash values.
+INSTALL_FILE_V8_1_4_MD5=0d9fa82f82ac5cdac5cb30fe4ebb8cd6
+INSTALL_FILE_V8_1_5_MD5=5426ce57ebe9f102ece0d7c1fd09a916
+INSTALL_FILE_V8_1_6_MD5=861b78f25c84efe82a6ecdaa257617cb
+INSTALL_FILE_V8_1_8_MD5=ea2f65abc107b061efbd54507422fae0
+INSTALL_FILE_V8_1_9_MD5=071bca7d9138ee00ca8592886a267130
+INSTALL_FILE_V8_2_7_MD5=99dd11823d2a00e9eb84b6e1f385a674
+INSTALL_FILE_V9_1_0_1_MD5=964bea297862b1cf41812a419af557b1
+
+
+while getopts r:o:v:p:a:e:s:i:k:c:m:d:b:w:u:x:h flag; do
+    case "${flag}" in
+    r) ROLE=${OPTARG} ;;
+    o) ORG=${OPTARG} ;;
+    v) VERSION=${OPTARG} ;;
+    p) INSTALL_PATH=${OPTARG} ;;
+    a) ADMIN_PASSWORD=${OPTARG} ;;
+    e) REP_FACTOR=${OPTARG} ;;
+    s) SEARCH_FACTOR=${OPTARG} ;;
+    i) IDX_PASS4SYMMKEY=${OPTARG} ;;
+    k) SHC_PASS4SYMMKEY=${OPTARG} ;;
+    c) IDXDISCOVERY_PASS4SYMMKEY=${OPTARG} ;;
+    m) MASTER_URI=${OPTARG} ;;
+    d) DS_URI=${OPTARG} ;;
+    b) DP_URI=${OPTARG} ;;
+    w) HOT_VOLUME_PATH=${OPTARG} ;;
+    u) COLD_VOLUME_PATH=${OPTARG} ;;
+    x) HF_HOST_WHITELIST=${OPTARG} ;;
+    h) HELP=Yes ;;
+    esac
+done
+
+if [ $HELP ]; then
+    echo "
+#####################################################################################
+# Command Line Usage 
+# r) ROLE of SPLUNK (AIO, CM, IDX, SH, HF, DS, DP)
+# o) ORGANIZATION name
+# v) Splunk VERSION number to install (8.0.4, 8.0.6, 8.0.8)
+# p) INSTALL_PATH (/opt, /data etc.)
+# a) ADMIN_PASSWORD
+# e) REP_FACTOR=${OPTARG};;
+# s) SEARCH_FACTOR=${OPTARG};;
+# i) IDX_PASS4SYMMKEY=${OPTARG};;
+# k) SHC_PASS4SYMMKEY=${OPTARG};;
+# c) IDXDISCOVERY_PASS4SYMMKEY=${OPTARG};;
+# m) MASTER_URI=${OPTARG};;
+# d) DS_URI=${OPTARG};;
+# b) DP_URI=${OPTARG};;
+# w) HOT_VOLUME_PATH=${OPTARG};;
+# u) COLD_VOLUME_PATH=${OPTARG};;
+# h) Help 
+
+Sample;
+Splunk Indexer
+./installSplunk.sh -r HF -o org -v 8.0.4 -p /data 
+
+#####################################################################################"
+    exit 0
+fi
+
+while [[ ! $ROLE == "AIO" ]] && [[ ! $ROLE == "CM" ]] && [[ ! $ROLE == "IDX" ]] && [[ ! $ROLE == "SH" ]] && [[ ! $ROLE == "HF" ]] && [[ ! $ROLE == "DS" ]] && [[ ! $ROLE == "DP" ]] && [[ ! $ROLE == "FILE" ]]; do
+    echo -e "\e[1;33m### Please enter the ROLE of this Splunk instance (CM, IDX, SH, HF, DS, DP) ?\e[0m"
+    read ROLE
+done
+
+while [ ! $ORG ]; do
+    echo -e "\e[1;33m### Please enter the ORGANIZATION name for Base Config naming ?\e[0m"
+    read ORG
+done
+
+while [[ ! $VERSION == "9.1.0.1" ]] && [[ ! $VERSION == "8.2.7" ]] && [[ ! $VERSION == "8.1.5" ]] && [[ ! $VERSION == "8.1.6" ]] && [[ ! $VERSION == "8.1.8" ]]  && [[ ! $VERSION == "8.1.9" ]]; do
+    echo -e "\e[1;33m### Please enter a valid VERSION of Splunk (8.0.4, 8.0.6, 8.0.8, 8.0.9, 8.1.4, 8.1.5, 8.1.6) ?\e[0m"
+    read VERSION
+done
+
+while [ ! $INSTALL_PATH ]; do
+    echo -e "\e[1;33m### Please enter the Installation path for Splunk ?\e[0m"
+    read INSTALL_PATH
+done
+
+if [ ! -d $INSTALL_PATH ]; then
+    echo -e "\e[1;31m### $INSTALL_PATH does not exists, please create and run again \e[0m"
+    exit 1
+fi
+
+INSTALL_FILE=INSTALL_FILE_V$(echo $VERSION | sed 's/\./_/g')
+INSTALL_FILE_MD5=$(echo $INSTALL_FILE)_MD5
+INSTALL_FILE=$(echo ${!INSTALL_FILE})
+INSTALL_FILE_MD5=$(echo ${!INSTALL_FILE_MD5})
+
+INSTALL_URL='https://download.splunk.com/products/splunk/releases/'$(echo $VERSION)/linux/$INSTALL_FILE
+
+while [ ! $INSTALL_URL ]; do
+    echo -n "unknown version"
+    exit -1
+done
+
+echo "### Checking NTP settings..."
+timedatectl | grep "NTP enabled: yes" || echo -e "\e[1;31mNTP Not Enabled... \e[0m"
+
+echo "### Checking noatime option in /etc/fstab for $INSTALL_PATH mount..."
+grep "$(df $INSTALL_PATH -h | grep -v "Mounted" | awk ' {print $6}') " /etc/fstab | awk '{print $4}' | grep noatime || echo -e "\e[1;31mnoatime option is not set in /etc/fstab...\e[0m"
+
+DISTRO=$(awk '/^ID=/' /etc/*-release | awk -F'=' '{ print tolower($2) }' | sed -e 's/^"//' -e 's/"$//')
+
+if [ $DISTRO == "centos" ] || [ $DISTRO == "rhel" ] || [ $DISTRO == "ubuntu" ] || [ $DISTRO == "ol" ]; then
+    echo ''
+    echo "### Linux DISTRO is ==> "$DISTRO" ###"
+    echo ''
+else
+    echo ''
+    echo "### Unknown Linux DISTRO " $DISTRO " , quitting..."
+    exit
+fi
+echo ''
+
+echo "never" >/sys/kernel/mm/transparent_hugepage/enabled
+echo "never" >/sys/kernel/mm/transparent_hugepage/defrag
+cat <<EOT >/etc/systemd/system/disable-thp.service
+[Unit]
+Description=Disable Transparent Huge Pages
+
+[Service]
+Type=simple
+ExecStart=/bin/sh -c "echo never > /sys/kernel/mm/transparent_hugepage/enabled && echo never > /sys/kernel/mm/transparent_hugepage/defrag"
+Type=simple
+
+[Install]
+WantedBy=multi-user.target
+
+EOT
+systemctl daemon-reload
+systemctl start disable-thp
+systemctl enable disable-thp
+echo ''
+echo "### Transparent Huge Pages (THP) Disabled. ###"
+echo ''
+
+cat <<EOT >/etc/security/limits.d/splunk_limits.conf
+splunk hard core 0
+splunk hard maxlogins 10
+splunk soft nofile 655350
+splunk hard nofile 819200
+splunk soft nproc 32768
+splunk hard nproc 51200
+splunk soft fsize unlimited
+splunk hard fsize unlimited
+splunk soft data unlimited
+splunk hard data unlimited
+
+root hard core 0
+root hard maxlogins 10
+root nofile 65535
+root hard nofile 65535
+root soft nproc 20480
+root hard nproc 20480
+root soft fsize unlimited
+root hard fsize unlimited
+root soft data unlimited
+root hard data unlimited
+
+EOT
+echo ''
+echo "### ulimits increased for splunk user. ###"
+echo ''
+
+echo ''
+if [ $DISTRO == "centos" ] || [ $DISTRO == "rhel" ] || [ $DISTRO == "ol" ]; then
+    tuned-adm profile latency-performance
+    echo "### Server profile changed to latency performance tuning. ###"
+
+    echo "### Installing diag tools... ###"
+    yum install elfutils net-tools sysstat -y
+fi
+
+cd /tmp
+if [ ! -f /tmp/$INSTALL_FILE ] || [ ! $INSTALL_FILE_MD5 == $(md5sum /tmp/$INSTALL_FILE | awk '{print $1}') ]; then
+    echo ''
+    echo '### Splunk installation file not found or checksum failed, will be downloaded. ###'
+    echo ''
+    if [ -x "$(which curl)" ]; then
+        echo "### Downloading Splunk installation $INSTALL_FILE file using curl $INSTALL_URL ###"
+        curl -o /tmp/$INSTALL_FILE -fL $INSTALL_URL
+        #curl -o $INSTALL_FILE -fL --progress-bar $INSTALL_URL
+    elif [ -x "$(which wget)" ]; then
+        echo "### Downloading Splunk installation $INSTALL_FILE file using wget $INSTALL_URL  ###"
+        wget -O /tmp/$INSTALL_FILE $INSTALL_URL
+    else
+        echo '### Could not find curl or wget ###'
+        echo '### Trying to install wget ###'
+        if [ $DISTRO == "centos" ] || [ $DISTRO == "rhel" ] || [ $DISTRO == "ol" ]; then
+            yum install wget -y
+        elif [ $DISTRO == "ubuntu" ]; then
+            apt-get -y install wget
+        fi
+        if [ -x "$(which wget)" ]; then
+            echo "### Downloading Splunk installation tgz file using wget ###"
+            wget -O /tmp/$INSTALL_FILE $INSTALL_URL
+        fi
+    fi
+
+    echo ''
+    if [ ! -f /tmp/$INSTALL_FILE ] || [ ! $INSTALL_FILE_MD5 == $(md5sum /tmp/$INSTALL_FILE | awk '{print $1}') ]; then
+        echo "### Splunk installation file download error, quitting...###"
+        exit
+    else
+        echo "### Splunk installation file Downloaded. ###"
+    fi
+else
+    echo "### Splunk installation file already exists. ###"
+fi
+
+echo ''
+echo "### Extracting files to "$INSTALL_PATH" ###"
+tar -xzf /tmp/$INSTALL_FILE -C $INSTALL_PATH --checkpoint=.1000
+#rm -f /tmp/$INSTALL_FILE
+echo ''
+if id -u splunk >/dev/null 2>&1; then
+    echo "### splunk user already exists###"
+else
+    echo "### Creating splunk user ###"
+    if [ $DISTRO == "ubuntu" ]; then
+        adduser --disabled-password --gecos "" splunk
+    else
+        useradd -m splunk
+    fi
+fi
+echo ''
+echo "### Splunk installed and splunk linux user created. ###"
+echo ''
+
+echo ''
+cat <<EOT >$INSTALL_PATH/splunk/etc/system/local/web.conf
+[settings]
+enableSplunkWebSSL = true
+
+EOT
+echo ''
+echo "### HTTPS enabled for Splunk Web using self-signed certificate. ###"
+echo ''
+
+if [ $ADMIN_PASSWORD ]; then
+    cat <<EOT >$INSTALL_PATH/splunk/etc/system/local/user-seed.conf
+	[user_info]
+	USERNAME = ${ORG}admin
+	PASSWORD = $ADMIN_PASSWORD
+
+EOT
+    echo "### Splunk admin user created ###"
+    echo ''
+fi
+
+############################# Start of Functions #############################
+
+create_app_meta_local() {
+    echo "### Creating $1 app in $2 ... ###"
+    mkdir $INSTALL_PATH/splunk/etc/$2/$1/metadata -p
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1/metadata/local.meta
+[]
+access = read : [ * ], write : [ admin ]
+export = system
+
+EOT
+    mkdir $INSTALL_PATH/splunk/etc/$2/$1/local -p
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1/local/app.conf
+[install]
+state = enabled
+
+[package]
+check_for_updates = false
+
+[ui]
+is_visible = false
+is_manageable = false
+
+EOT
+}
+
+create_org_cluster_forwarder_outputs() {
+    create_app_meta_local "$1_cluster_forwarder_outputs" $2
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1_cluster_forwarder_outputs/local/outputs.conf
+[tcpout]
+defaultGroup = primary_indexers
+maxQueueSize = 64MB
+useACK = true
+autoLBFrequency = 10
+forceTimebasedAutoLB = true
+forwardedindex.2.whitelist = (_audit|_introspection|_internal)
+
+[tcpout:primary_indexers]
+#server = $INDEXERS_IP_PORT
+indexerDiscovery = clustered_indexers
+
+#clientCert = $INSTALL_PATH/splunk/etc/auth/server.pem
+#sslPassword = password
+#sslVerifyServerCert = false
+
+[indexer_discovery:clustered_indexers]
+pass4SymmKey = $IDXDISCOVERY_PASS4SYMMKEY
+#master_uri = $MASTER_URI
+manager_uri = $MASTER_URI
+
+EOT
+    echo "### $1 $2 app creation finished... ###"
+}
+
+create_org_cluster_forwarder_outputs_ssl() {
+    create_app_meta_local "$1_cluster_forwarder_outputs_ssl" $2
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1_cluster_forwarder_outputs_ssl/local/outputs.conf
+#clientCert = $INSTALL_PATH/splunk/etc/auth/server.pem
+#sslPassword = password
+#sslVerifyServerCert = false
+
+EOT
+    echo "### $1 $2 app creation finished... ###"
+}
+
+create_org_ufwin_forwarder_outputs_ssl() {
+    create_app_meta_local "$1_ufwin_forwarder_outputs_ssl" $2
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1_ufwin_forwarder_outputs_ssl/local/outputs.conf
+[tcpout:primary_indexers]
+clientCert = $SPLUNK_HOME/etc/auth/server.pem
+sslPassword = password
+sslVerifyServerCert = false
+
+EOT
+
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1_ufwin_forwarder_outputs_ssl/local/server.conf
+[sslConfig]
+caCertFile = cacert.pem
+caPath = $SPLUNK_HOME\etc\auth
+
+EOT
+
+    echo "### $1 $2 app creation finished... ###"
+}
+
+create_org_ufnix_forwarder_outputs_ssl() {
+    create_app_meta_local "$1_ufnix_forwarder_outputs_ssl" $2
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1_ufnix_forwarder_outputs_ssl/local/outputs.conf
+[tcpout:primary_indexers]
+clientCert = $SPLUNK_HOME/etc/auth/server.pem
+sslPassword = password
+sslVerifyServerCert = false
+
+EOT
+
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1_ufnix_forwarder_outputs_ssl/local/server.conf
+[sslConfig]
+sslRootCAPath = /opt/splunkforwarder/etc/auth/cacert.pem
+
+EOT
+    echo "### $1 $2 app creation finished... ###"
+}
+
+create_org_cluster_master_base() {
+    create_app_meta_local "$1_cluster_master_base" $2
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1_cluster_master_base/local/server.conf
+[clustering]
+mode = master
+replication_factor = $REP_FACTOR
+search_factor = $SEARCH_FACTOR
+pass4SymmKey = $IDX_PASS4SYMMKEY
+cluster_label = $ORG-IDXCluster
+summary_replication = true
+
+#rep_cxn_timeout = 120
+#rep_max_rcv_timeout = 600
+#rep_max_send_timeout = 600
+#rep_rcv_timeout = 120
+#rep_send_timeout = 120
+#send_timeout = 600
+
+[indexer_discovery]
+pass4SymmKey = $IDXDISCOVERY_PASS4SYMMKEY
+
+EOT
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1_cluster_master_base/local/telemetry.conf
+[general]
+sendLicenseUsage = false
+
+EOT
+    echo "### $1 $2 app creation finished... ###"
+}
+
+create_org_cluster_search_base() {
+    create_app_meta_local "$1_cluster_search_base" $2
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1_cluster_search_base/local/server.conf
+[clustering]
+mode = searchhead
+#master_uri = clustermaster:one
+manager_uri = clustermanager:one
+#pass4SymmKey = $IDX_PASS4SYMMKEY
+#multisite = false
+
+[clustermanager:one]
+pass4SymmKey = $IDX_PASS4SYMMKEY
+#master_uri = $MASTER_URI
+manager_uri = $MASTER_URI
+multisite = false
+
+EOT
+    echo "### $1 $2 app creation finished... ###"
+}
+
+create_org_all_deploymentclient() {
+    create_app_meta_local "$1_all_deploymentclient" $2
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1_all_deploymentclient/local/deploymentclient.conf
+[deployment-client]
+# phoneHomeIntervalInSecs = 600
+
+[target-broker:deploymentServer]
+targetUri = $DS_URI
+
+EOT
+    echo "### $1 $2 app creation finished... ###"
+}
+
+create_org_all_uf_base() {
+    create_app_meta_local "$1_all_uf_base" $2
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1_all_uf_base/local/server.conf
+[httpServer]
+disableDefaultPort = true
+
+EOT
+    echo "### $1 $2 app creation finished... ###"
+}
+
+create_org_intermediate_forwarder_base() {
+    create_app_meta_local "$1_intermediate_forwarder_base" $2
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1_intermediate_forwarder_base/local/web.conf
+[settings]
+startwebserver = 0
+
+EOT
+    echo "### $1 $2 app creation finished... ###"
+}
+
+create_org_intermediate_forwarder_pipelines() {
+    create_app_meta_local "$1_intermediate_forwarder_pipelines" $2
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1_intermediate_forwarder_pipelines/local/server.conf
+[general]
+parallelIngestionPipelines = 4
+
+EOT
+    echo "### $1 $2 app creation finished... ###"
+}
+
+create_org_intermediate_forwarder_limits() {
+    create_app_meta_local "$1_intermediate_forwarder_limits" $2
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1_intermediate_forwarder_limits/local/limits.conf
+[thruput]
+maxKBps = 0
+
+EOT
+    echo "### $1 $2 app creation finished... ###"
+}
+
+create_org_full_license_server() {
+    create_app_meta_local "$1_full_license_server" $2
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1_full_license_server/local/server.conf
+[license]
+master_uri = $MASTER_URI
+
+EOT
+    echo "### $1 $2 app creation finished... ###"
+}
+
+create_org_cluster_indexer_base() {
+    create_app_meta_local "$1_cluster_indexer_base" $2
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1_cluster_indexer_base/local/web.conf
+[settings]
+startwebserver = false
+
+EOT
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1_cluster_indexer_base/local/inputs.conf
+[splunktcp://9997]
+
+#[splunktcp-ssl:9997]
+#disabled = 0
+
+#[SSL]
+#serverCert = $INSTALL_PATH/splunk/etc/auth/server.pem
+#sslPassword = password
+#requireClientCert=false
+
+EOT
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1_cluster_indexer_base/local/indexes.conf
+[default]
+repFactor = auto
+journalCompression = zstd
+tsidxWritingLevel = 3
+
+[_introspection]
+repFactor = 0
+
+EOT
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1_cluster_indexer_base/local/server.conf
+[clustering]
+mode = slave
+#master_uri = $MASTER_URI
+manager_uri = $MASTER_URI
+pass4SymmKey = $IDX_PASS4SYMMKEY
+
+#cxn_timeout = 600
+#rep_cxn_timeout = 120
+#rep_send_timeout = 120
+#rep_rcv_timeout = 120
+#rep_max_rcv_timeout = 600
+#rep_max_send_timeout = 600
+#heartbeat_timeout = 120
+
+[replication_port://8080]
+disabled = false
+
+[kvstore]
+disabled = true
+
+[general]
+parallelIngestionPipelines = 4
+
+#[sslConfig]
+#sslRootCAPath = $INSTALL_PATH/splunk/etc/auth/cacert.pem
+
+EOT
+    echo "### $1 $2 app creation finished... ###"
+}
+
+create_org_shcluster_deployer_base() {
+    create_app_meta_local "$1_shcluster_deployer_base" $2
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1_shcluster_deployer_base/local/server.conf
+[shclustering]
+pass4SymmKey = $SHC_PASS4SYMMKEY
+shcluster_label = $ORG-SHCluster
+deployerPushThreads = auto
+
+EOT
+    echo "### $1 $2 app creation finished... ###"
+} 
+
+create_org_shcluster_base() {
+    create_app_meta_local "$1_shcluster_base" $2
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1_shcluster_base/local/server.conf
+[shclustering]
+rcv_timeout_raft=10      # current -> 5
+rcv_timeout=120        # current -> 60
+heartbeat_timeout=120     # current -> 60
+send_timeout=120       # current -> 60
+cxn_timeout=120        # current -> 60
+election_timeout_ms=120000  # current -> 60000
+cxn_timeout_raft=4      # current -> 2
+send_timeout_raft=5
+
+EOT
+    echo "### $1 $2 app creation finished... ###"
+}
+
+create_org_all_search_base() {
+    create_app_meta_local "$1_all_search_base" $2
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1_all_search_base/local/web.conf
+[settings]
+enableSplunkWebSSL = true
+updateCheckerBaseURL = 0
+max_upload_size = 1024
+
+EOT
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1_all_search_base/local/distsearch.conf
+[replicationBlacklist]
+javabin = apps/splunk_archiver/java-bin/..
+
+EOT
+
+    echo "### $1 $2 app creation finished... ###"
+}
+
+create_org_all_indexes() {
+    create_app_meta_local "$1_all_indexes" $2
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1_all_indexes/local/indexes.conf
+[default]
+repFactor = auto
+journalCompression = zstd
+tsidxWritingLevel = 3
+
+[_introspection]
+repFactor = 0
+
+[default]
+frozenTimePeriodInSecs = 63072000
+maxTotalDataSizeMB = 50000000
+
+[main]
+homePath   = volume:primary/defaultdb/db
+coldPath   = volume:primary/defaultdb/colddb
+thawedPath = \$SPLUNK_DB/defaultdb/thaweddb
+
+[history]
+homePath   = volume:primary/historydb/db
+coldPath   = volume:primary/historydb/colddb
+thawedPath = \$SPLUNK_DB/historydb/thaweddb
+
+[summary]
+homePath   = volume:primary/summarydb/db
+coldPath   = volume:primary/summarydb/colddb
+thawedPath = \$SPLUNK_DB/summarydb/thaweddb
+
+[_internal]
+homePath   = volume:primary/_internaldb/db
+coldPath   = volume:primary/_internaldb/colddb
+thawedPath = \$SPLUNK_DB/_internaldb/thaweddb
+
+# For version 6.1 and higher
+[_introspection]
+homePath   = volume:primary/_introspection/db
+coldPath   = volume:primary/_introspection/colddb
+thawedPath = \$SPLUNK_DB/_introspection/thaweddb
+
+# For version 6.5 and higher
+[_telemetry]
+homePath   = volume:primary/_telemetry/db
+coldPath   = volume:primary/_telemetry/colddb
+thawedPath = \$SPLUNK_DB/_telemetry/thaweddb
+
+[_audit]
+homePath   = volume:primary/audit/db
+coldPath   = volume:primary/audit/colddb
+thawedPath = \$SPLUNK_DB/audit/thaweddb
+
+[_thefishbucket]
+homePath   = volume:primary/fishbucket/db
+coldPath   = volume:primary/fishbucket/colddb
+thawedPath = \$SPLUNK_DB/fishbucket/thaweddb
+
+# For version 8.0 and higher
+[_metrics]
+homePath   = volume:primary/_metrics/db
+coldPath   = volume:primary/_metrics/colddb
+thawedPath = \$SPLUNK_DB/_metrics/thaweddb
+datatype = metric
+
+# For version 8.0.4 and higher
+[_metrics_rollup]
+homePath   = volume:primary/_metrics_rollup/db
+coldPath   = volume:primary/_metrics_rollup/colddb
+thawedPath = \$SPLUNK_DB/_metrics_rollup/thaweddb
+datatype = metric
+
+
+# SPLUNKBASE APP INDEXES
+
+# CUSTOMER INDEXES
+
+#[fortinet]
+#homePath = volume:primary/\$_index_name/db
+#coldPath = volume:cold/\$_index_name/colddb
+#thawedPath = \$SPLUNK_DB/\$_index_name/thaweddb
+
+EOT
+    echo "### $1 $2 app creation finished... ###"
+}
+
+create_org_serverclass() {
+    create_app_meta_local "$1_serverclass" $2
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1_serverclass/local/serverclass.conf
+[serverClass:All_HeavyForwarders:app:$1_intermediate_forwarder_base]
+restartSplunkWeb = 0
+restartSplunkd = 1
+stateOnClient = enabled
+
+[serverClass:All_HeavyForwarders:app:$1_full_license_server]
+restartSplunkWeb = 0
+restartSplunkd = 1
+stateOnClient = enabled
+
+[serverClass:All_HeavyForwarders:app:$1_intermediate_forwarder_limits]
+restartSplunkWeb = 0
+restartSplunkd = 1
+stateOnClient = enabled
+
+[serverClass:All_HeavyForwarders:app:$1_intermediate_forwarder_pipelines]
+restartSplunkWeb = 0
+restartSplunkd = 1
+stateOnClient = enabled
+
+[serverClass:All_HeavyForwarders:app:$1_all_deploymentclient]
+restartSplunkWeb = 0
+restartSplunkd = 1
+stateOnClient = enabled
+
+[serverClass:All_HeavyForwarders:app:$1_cluster_forwarder_outputs]
+restartSplunkWeb = 0
+restartSplunkd = 1
+stateOnClient = enabled
+
+[serverClass:All_HeavyForwarders:app:TA-HF_check_syslog_sources]
+restartSplunkWeb = 0
+restartSplunkd = 1
+stateOnClient = enabled
+
+$HF_HOST_WHITELIST
+
+EOT
+    echo "### $1 $2 app creation finished... ###"
+
+}
+
+create_org_indexer_volume_indexes() {
+    create_app_meta_local "$1_indexer_volume_indexes" $2
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1_indexer_volume_indexes/local/indexes.conf
+[volume:primary]
+path = $HOT_VOLUME_PATH
+maxVolumeDataSizeMB = 13700000
+
+[volume:cold]
+path = $COLD_VOLUME_PATH
+maxVolumeDataSizeMB = 45000000
+
+#[volume:s3]
+#storageType = remote
+#path = s3://remote_volume
+#remote.s3.access_key = S3_ACCESS_KEY
+#remote.s3.secret_key = S3_SECRET_KEY
+#remote.s3.supports_versioning = false
+#remote.s3.endpoint = https://s3url
+
+#[default]
+#remotePath = volume:s3/\$_index_name
+
+EOT
+    echo "### $1 $2 app creation finished... ###"
+}
+
+create_org_hf_syslog_inputs() {
+    create_app_meta_local "$1_hf_syslog_inputs" $2
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1_hf_syslog_inputs/local/inputs.conf
+
+# [monitor:///data/log/splunk/syslog/<HOSTNAME>/*.log]
+# sourcetype = my_sourcetype
+# index = my_index
+# host_segment = 5
+# ignoreOlderThan = 30d
+# disabled = false
+
+# [monitor:///data/log/splunk/syslog/<HOSTNAME>]
+# host_segment = 5
+# sourcetype = text_files
+# index = main
+# disabled = false
+# whitelist = \.txt$
+
+# Scripted input, Unix
+# [script://./bin/script.sh]
+# interval = 30
+# source = script.sh
+# sourcetype = myscript
+# index = unix
+
+# Scripted input, Windows
+# [script://.\bin\script.bat]
+# interval = -1
+# sourcetype = mybat
+# index = windows
+
+# Script on a schedule
+# [script://./bin/clock_watcher.py]
+# interval = 0 * * * *
+# sourcetype = clock
+# source = tick_tock
+# index = main
+
+# [batch:///path/to/log-directory]
+# move_policy = sinkhole
+# sourcetype = nom_nom
+# index = batch
+# crcSalt = <SOURCE>
+
+EOT
+    echo "### $1 $2 app creation finished... ###"
+}
+
+create_org_all_windows_inputs() {
+    create_app_meta_local "$1_all_windows_inputs" $2
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1_all_windows_inputs/local/inputs.conf
+
+###### OS Logs ######
+[WinEventLog://Application]
+disabled = 1
+start_from = oldest
+current_only = 0
+checkpointInterval = 5
+renderXml=false
+
+[WinEventLog://Security]
+disabled = 1
+start_from = oldest
+current_only = 0
+evt_resolve_ad_obj = 1
+checkpointInterval = 5
+blacklist1 = EventCode="4662" Message="Object Type:(?!\s*groupPolicyContainer)"
+blacklist2 = EventCode="566" Message="Object Type:(?!\s*groupPolicyContainer)"
+renderXml=false
+
+[WinEventLog://System]
+disabled = 1
+start_from = oldest
+current_only = 0
+checkpointInterval = 5
+renderXml=false
+
+
+###### Forwarded WinEventLogs (WEF) ######
+[WinEventLog://ForwardedEvents]
+disabled = 1
+start_from = oldest
+current_only = 0
+checkpointInterval = 5
+## The addon supports only XML format for the collection of WinEventLogs using WEF, hence do not change the below renderXml parameter to false.
+renderXml=true
+host=WinEventLogForwardHost
+
+###### DHCP ######
+[monitor://$WINDIR\System32\DHCP]
+disabled = 1
+whitelist = DhcpSrvLog*
+crcSalt = <SOURCE>
+sourcetype = DhcpSrvLog
+
+###### Windows Update Log ######
+## Enable below stanza to get WindowsUpdate.log for Windows 8, Windows 8.1, Server 2008R2, Server 2012 and Server 2012R2
+[monitor://$WINDIR\WindowsUpdate.log]
+disabled = 1
+sourcetype = WindowsUpdateLog
+
+## Enable below powershell and monitor stanzas to get WindowsUpdate.log for Windows 10 and Server 2016
+## Below stanza will automatically generate WindowsUpdate.log daily
+[powershell://generate_windows_update_logs]
+script = ."$SplunkHome\etc\apps\Splunk_TA_windows\bin\powershell\generate_windows_update_logs.ps1"
+schedule = 0 */24 * * *
+disabled = 1
+
+## Below stanza will monitor the generated WindowsUpdate.log in Windows 10 and Server 2016
+[monitor://$SPLUNK_HOME\var\log\Splunk_TA_windows\WindowsUpdate.log]
+disabled = 1
+sourcetype = WindowsUpdateLog
+
+###### Monitor Inputs for DNS ######
+[MonitorNoHandle://$WINDIR\System32\Dns\dns.log]
+sourcetype=MSAD:NT6:DNS
+disabled=1
+
+EOT
+    echo "### $1 $2 app creation finished... ###"
+}
+
+create_TA-HF_check_syslog_sources() {
+    create_app_meta_local "TA-HF_check_syslog_sources" $2
+    mkdir $INSTALL_PATH/splunk/etc/$2/TA-HF_check_syslog_sources/default 
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/TA-HF_check_syslog_sources/default/inputs.conf
+[script://./bin/check_syslog_sources.sh]
+disabled = False
+interval = */10 * * * *
+
+EOT
+    mkdir $INSTALL_PATH/splunk/etc/$2/TA-HF_check_syslog_sources/bin 
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/TA-HF_check_syslog_sources/bin/check_syslog_sources.sh
+#!/bin/bash
+
+ORG=$ORG
+SPLUNK_HOME=$INSTALL_PATH/splunk
+SYSLOG_BASE=$INSTALL_PATH/log/splunk/syslog
+INPUTS_BASE=/etc/apps/\${ORG}_hf_syslog_inputs
+
+[ ! -d \$SPLUNK_HOME ] && { echo SPLUNK_HOME=\$SPLUNK_HOME path not found; exit -1; }
+[ ! -d \$SYSLOG_BASE ] && { echo SYSLOG_BASE=\$SYSLOG_BASE path not found; exit -1; }
+[ ! -d \$SPLUNK_HOME\$INPUTS_BASE ] && { echo INPUTS_BASE=\$INPUTS_BASE path not found; exit -1; }
+
+cd \$SYSLOG_BASE
+
+ls -d */ | cut -f1 -d'/' | grep -Ev "\$(grep monitor://\$SYSLOG_BASE \$SPLUNK_HOME\$INPUTS_BASE/local/inputs.conf | awk -F'/' '{print \$8}' | awk -F']' '{print "(^"\$1"\$)"}' | tr '\n' '|' | sed 's/.\$//')" | gawk '{ print strftime("[%Y-%m-%d %H:%M:%S]"), \$0 }' >> \$SPLUNK_HOME/var/log/splunk/syslog_sources.log
+
+EOT
+    chmod +x $INSTALL_PATH/splunk/etc/$2/TA-HF_check_syslog_sources/bin/check_syslog_sources.sh 
+    echo "### TA-HF_check_syslog_sources $2 app creation finished... ###"
+}
+
+create_org_general_app() {
+    create_app_meta_local "$1_all_general" $2
+    mkdir $INSTALL_PATH/splunk/etc/$2/$1_all_general/default/data/ui/views -p
+    mkdir $INSTALL_PATH/splunk/etc/$2/$1_all_general/default/data/ui/nav -p
+    rm -f $INSTALL_PATH/splunk/etc/$2/$1_all_general/local/app.conf 
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1_all_general/default/app.conf
+[install]
+is_configured = 0
+state = enabled
+
+[package]
+check_for_updates = false
+
+[ui]
+is_visible = 1
+label = $ORG All General
+
+[launcher]
+author = Destel
+description = General App
+version = 1.0.0
+EOT
+
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1_all_general/default/data/ui/nav/default.xml
+<nav search_view="search">
+  <view name="search" default='true' />
+  <view name="datasets" />
+  <view name="reports" />
+  <view name="alerts" />
+  <view name="dashboards" />
+  <view name="data_ingestion_info" />
+</nav>
+EOT
+
+    cat <<EOT >$INSTALL_PATH/splunk/etc/$2/$1_all_general/default/data/ui/views/data_ingestion_info.xml
+<dashboard>
+  <label>Data Ingestion Info</label>
+  <row>
+    <panel>
+      <title>EPS</title>
+      <chart>
+        <search>
+          <query>| tstats count where index=* _index_earliest=-2h _index_latest=now() earliest=-24h latest=+4h groupby _indextime
+| bin span=1m _indextime
+| eval _time=_indextime
+| chart max(count) as max avg(count) as avg perc90(count) over _time
+| eval avg=round(avg,0)</query>
+          <earliest>-4h@m</earliest>
+          <latest>now</latest>
+          <sampleRatio>1</sampleRatio>
+          <refresh>1m</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.drilldown">none</option>
+        <option name="refresh.display">none</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Undefined Syslog Sources</title>
+      <table>
+        <search>
+          <query>index=_internal source="*/splunk/var/log/splunk/syslog_sources.log" 
+| rex "\]\s(?&lt;syslog_source&gt;.*)" 
+| dedup host syslog_source 
+| stats max(_time) as _time values(host) as host by syslog_source
+| table _time host syslog_source</query>
+          <earliest>-15m</earliest>
+          <latest>now</latest>
+          <sampleRatio>1</sampleRatio>
+          <refresh>1m</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="count">20</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">none</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+      </table>
+    </panel>
+  </row>
+</dashboard>
+EOT
+    echo "### $1 $2 app creation finished... ###"
+}
+
+add_firewall_rule() {
+    echo "### Checking firewalld service..."
+    if [ $DISTRO == "centos" ] || [ $DISTRO == "rhel" ] || [ $DISTRO == "ol" ]; then
+        if [ "$(yum list installed -C | grep firewalld)" ]; then
+            if systemctl is-active --quiet firewalld; then
+                if [ ! "$(firewall-cmd --list-all | grep $1)" ]; then
+                    echo "### Adding $1 rule..."
+                    firewall-cmd --add-port=$1 --permanent
+                    firewall-cmd --reload
+                else
+                    echo "### $1 rule exists..."
+                fi
+            fi
+        fi
+    fi
+}
+
+############################# End of Functions #############################
+
+[ $ROLE == "FILE" ] && ROLE=$(cat /tmp/SPLUNK_ROLE_FILE)
+
+case $ROLE in
+
+"AIO")
+    #ALL in One settings
+    add_firewall_rule "8000/tcp"
+    ;;
+
+"CM")
+    #CM Role settings
+    create_org_cluster_forwarder_outputs "$ORG" "apps"
+    create_org_cluster_forwarder_outputs_ssl "$ORG" "apps"
+    create_org_cluster_master_base "$ORG" "apps"
+    create_org_all_indexes "$ORG" "master-apps"
+    create_org_indexer_volume_indexes "$ORG" "master-apps"
+    create_org_cluster_indexer_base "$ORG" "master-apps"
+    create_org_full_license_server "$ORG" "master-apps"
+    add_firewall_rule "8089/tcp"
+    add_firewall_rule "8000/tcp"
+    ;;
+
+"IDX")
+    #IDX Role settings
+    create_org_cluster_indexer_base "$ORG" "apps"
+    add_firewall_rule "8089/tcp"
+    add_firewall_rule "9997/tcp"
+    add_firewall_rule "8080/tcp"
+    ;;
+
+"SH" )
+    #SH Role settings
+    add_firewall_rule "8089/tcp"
+    add_firewall_rule "8000/tcp"
+    ;;
+
+"HF")
+    #HF Role settings
+    create_org_all_deploymentclient "$ORG" "apps"
+    add_firewall_rule "514/udp"
+    add_firewall_rule "514/tcp"
+    add_firewall_rule "8088/tcp"
+    add_firewall_rule "9997/tcp"
+    ;;
+
+"DS")
+    #DS Role settings
+    create_org_cluster_forwarder_outputs "$ORG" "apps"
+    create_org_full_license_server "$ORG" "apps"
+    create_org_all_deploymentclient "$ORG" "deployment-apps"
+    create_org_cluster_forwarder_outputs "$ORG" "deployment-apps"
+    create_org_cluster_forwarder_outputs_ssl "$ORG" "deployment-apps"
+    create_org_ufnix_forwarder_outputs_ssl "$ORG" "deployment-apps" 
+    create_org_ufwin_forwarder_outputs_ssl "$ORG" "deployment-apps" 
+    create_org_full_license_server "$ORG" "deployment-apps"
+    create_org_intermediate_forwarder_pipelines "$ORG" "deployment-apps"
+    create_org_intermediate_forwarder_limits "$ORG" "deployment-apps"
+    create_org_intermediate_forwarder_base "$ORG" "deployment-apps"
+    create_org_hf_syslog_inputs "$ORG" "deployment-apps"
+    create_org_all_uf_base "$ORG" "deployment-apps"
+    create_org_all_windows_inputs "$ORG" "deployment-apps"
+    create_TA-HF_check_syslog_sources "$ORG" "deployment-apps" 
+    create_org_serverclass "$ORG" "apps"
+    add_firewall_rule "8089/tcp"
+    add_firewall_rule "8000/tcp"
+    ;;
+
+"DP")
+    #DP Role settings
+    create_org_cluster_forwarder_outputs "$ORG" "apps"
+    create_org_full_license_server "$ORG" "apps"
+    create_org_shcluster_deployer_base "$ORG" "apps"
+    create_org_cluster_search_base "$ORG" "apps"
+    create_org_all_search_base "$ORG" "shcluster/apps"
+    create_org_shcluster_base "$ORG" "shcluster/apps"
+    create_org_cluster_forwarder_outputs "$ORG" "shcluster/apps"
+    create_org_cluster_forwarder_outputs_ssl "$ORG" "shcluster/apps"
+    create_org_cluster_search_base "$ORG" "shcluster/apps"
+    create_org_full_license_server "$ORG" "shcluster/apps"
+    create_org_general_app "$ORG" "shcluster/apps"
+    add_firewall_rule "8089/tcp"
+    add_firewall_rule "8000/tcp"
+    ;;
+
+*)
+    echo -n "unknown role"
+    exit -1
+    ;;
+esac
+
+if [ $ROLE == "SH" ] && ([ $DP_URI == "https://:8089" ] || [ ! $DP_URI ]); then
+    create_org_cluster_forwarder_outputs "$ORG" "apps"
+    create_org_cluster_search_base "$ORG" "apps"
+    create_org_full_license_server "$ORG" "apps"
+    create_org_general_app "$ORG" "apps"
+fi
+
+chown -R splunk:splunk $INSTALL_PATH/splunk
+echo ''
+runuser -l splunk -c $INSTALL_PATH'/splunk/bin/splunk start --accept-license'
+$INSTALL_PATH/splunk/bin/splunk enable boot-start -user splunk
+
+runuser -l splunk -c $INSTALL_PATH'/splunk/bin/splunk stop'
+echo ''
+echo "### Checking Splunk Environment Variables ###"
+if [ -z "$SPLUNK_HOME" ]; then
+    cat <<EOT >>/home/splunk/.bashrc
+# Permanently Set Splunk Environment Variables
+export SPLUNK_HOME=$INSTALL_PATH/splunk
+export PATH=\$SPLUNK_HOME/bin:\$PATH
+
+if [ -f  \$SPLUNK_HOME/share/splunk/cli-command-completion.sh ]; then
+        . \$SPLUNK_HOME/share/splunk/cli-command-completion.sh
+fi
+
+EOT
+    echo "### Splunk Environment Variables permanently set. ###"
+fi
+echo ''
+
+echo "### Splunk test start and stop complete. Enabled Splunk to start at boot. ###"
+echo ''
+runuser -l splunk -c $INSTALL_PATH'/splunk/bin/splunk start'
+
+if [[ -f $INSTALL_PATH/splunk/bin/splunk ]]; then
+    echo Splunk Enterprise
+    cat $INSTALL_PATH/splunk/etc/splunk.version | head -1 | awk '{printf $1 }'
+    echo " has been installed, configured, and started!"
+    echo "Visit the Splunk server using url as mentioned above."
+    echo ''
+    echo ''
+    echo "                        HAPPY SPLUNKING!!!"
+    echo ''
+    echo ''
+    echo ''
+else
+    echo Splunk Enterprise has FAILED install!
+fi
+
+#End of File
+
+
